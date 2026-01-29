@@ -2,81 +2,133 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Запись</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Система записи</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #222222;
+            --tg-theme-button-color: #3390ec;
+            --tg-theme-button-text-color: #ffffff;
+            --tg-theme-hint-color: #707579;
+        }
+
         body {
-            font-family: sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            margin: 0;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
-            margin: 0;
-            background-color: #f0f0f0;
+            min-height: 100vh;
             text-align: center;
         }
-        button {
-            padding: 15px 30px;
-            background-color: #3390ec;
-            color: white;
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h1 { font-size: 24px; margin-bottom: 10px; }
+        p { color: var(--tg-theme-hint-color); margin-bottom: 30px; }
+
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 15px;
             border: none;
-            border-radius: 8px;
-            font-size: 18px;
+            border-radius: 12px;
+            background-color: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn:active { opacity: 0.7; }
+
+        #status-log {
             margin-top: 20px;
+            font-size: 10px;
+            color: #ff0000;
+            text-align: left;
+            background: #eee;
+            padding: 10px;
+            border-radius: 5px;
+            display: none; /* Скрыто по умолчанию */
         }
     </style>
 </head>
 <body>
 
-    <h1 id="main-text">Жду Telegram...</h1>
-    
-    <button onclick="sendData()">Нажми меня</button>
+    <div class="container">
+        <h1 id="user-name">Загрузка...</h1>
+        <p id="instruction">Подождите, мы настраиваем приложение для вас.</p>
+        
+        <button class="btn" onclick="sendOrder()">Оставить заявку</button>
+        
+        <div id="status-log"></div>
+    </div>
 
-<script>
-        // ЭТАП 1: Проверяем, запустился ли скрипт вообще
-        alert("Скрипт начал работу!");
+    <script>
+        const log = document.getElementById('status-log');
+        const header = document.getElementById('user-name');
+        const instruction = document.getElementById('instruction');
 
-        try {
-            let header = document.getElementById('main-text');
-            
-            // ЭТАП 2: Подключаем Телеграм
-            let tg = window.Telegram.WebApp;
-            tg.expand();
-            
-            alert("Телеграм подключен. Платформа: " + tg.platform);
-
-            // ЭТАП 3: Проверяем пользователя
-            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                let userParams = tg.initDataUnsafe.user;
-                alert("Вижу пользователя: " + userParams.first_name);
-                
-                // ВАЖНО: Обратите внимание на косые кавычки (на клавише с буквой Ё)
-                header.innerText = Привет, ${userParams.first_name}!;
-            } else {
-                alert("Пользователя нет (возможно, открыто не в том боте или в браузере)");
-                header.innerText = "Работает! (Режим браузера)";
-                header.style.color = "green";
-            }
-
-        } catch (error) {
-            // Если случилась ошибка, она появится на экране
-            alert("ОШИБКА В КОДЕ: " + error.message);
-            document.getElementById('main-text').innerText = "Ошибка: " + error.message;
-            document.getElementById('main-text').style.color = "red";
+        function addToLog(msg) {
+            log.style.display = "block";
+            log.innerHTML += "> " + msg + "<br>";
         }
 
-        function sendData() {
-            try {
-                window.Telegram.WebApp.sendData("Кнопка нажата!");
-            } catch (e) {
-                alert("Ошибка отправки: " + e.message);
+        try {
+            // 1. Проверка наличия объекта Telegram
+            if (window.Telegram && window.Telegram.WebApp) {
+                const tg = window.Telegram.WebApp;
+                
+                // Сообщаем TG, что приложение готово
+                tg.ready();
+                tg.expand();
+
+                // 2. Проверка данных пользователя
+                if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                    const user = tg.initDataUnsafe.user;
+                    header.innerText = Привет, ${user.first_name}!;
+                    instruction.innerText = "Теперь вы можете записаться в нашу секцию.";
+                } else {
+                    header.innerText = "Режим отладки";
+                    instruction.innerText = "Вы зашли не через Telegram-бота, но интерфейс работает.";
+                    addToLog("Внимание: initData.user не найден");
+                }
+
+                // Устанавливаем цвет кнопки из темы TG
+                if (tg.themeParams.button_color) {
+                    document.querySelector('.btn').style.backgroundColor = tg.themeParams.button_color;
+                }
+
+            } else {
+header.innerText = "Ошибка запуска";
+                instruction.innerText = "Похоже, скрипт Telegram не загрузился.";
+                addToLog("Критическая ошибка: window.Telegram.WebApp не найден");
+            }
+        } catch (e) {
+            header.innerText = "Сбой системы";
+            addToLog("Ошибка JS: " + e.message);
+        }
+
+        function sendOrder() {
+            const tg = window.Telegram.WebApp;
+            if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                tg.sendData("ЗАЯВКА_НА_ЗАПИСЬ");
+                tg.close();
+            } else {
+                alert("Эта кнопка отправит данные, когда вы откроете её внутри бота!");
             }
         }
     </script>
 </body>
-
 </html>
-
