@@ -35,38 +35,48 @@
     
     <button onclick="sendData()">Нажми меня</button>
 
-    <script>
-        // Элемент заголовка
-        let header = document.getElementById('main-text');
+<script>
+        // ЭТАП 1: Проверяем, запустился ли скрипт вообще
+        alert("Скрипт начал работу!");
 
-        // Проверяем: загрузился ли скрипт Телеграма вообще?
-        if (window.Telegram && window.Telegram.WebApp) {
+        try {
+            let header = document.getElementById('main-text');
+            
+            // ЭТАП 2: Подключаем Телеграм
             let tg = window.Telegram.WebApp;
             tg.expand();
+            
+            alert("Телеграм подключен. Платформа: " + tg.platform);
 
-            // Проверяем, есть ли данные пользователя (мы в приложении?)
+            // ЭТАП 3: Проверяем пользователя
             if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
-                // ДА, МЫ В ТЕЛЕГРАМЕ
-                header.innerText = Привет, ${tg.initDataUnsafe.user.first_name}!;
+                let userParams = tg.initDataUnsafe.user;
+                alert("Вижу пользователя: " + userParams.first_name);
+                
+                // ВАЖНО: Обратите внимание на косые кавычки (на клавише с буквой Ё)
+                header.innerText = Привет, ${userParams.first_name}!;
             } else {
-                // Скрипт есть, но пользователя нет (отладка)
+                alert("Пользователя нет (возможно, открыто не в том боте или в браузере)");
                 header.innerText = "Работает! (Режим браузера)";
                 header.style.color = "green";
             }
-        } else {
-            // МЫ В БРАУЗЕРЕ (Скрипт Телеграма не найден или заблокирован)
-            header.innerText = "Работает! (Без Телеграма)";
-            header.style.color = "blue";
+
+        } catch (error) {
+            // Если случилась ошибка, она появится на экране
+            alert("ОШИБКА В КОДЕ: " + error.message);
+            document.getElementById('main-text').innerText = "Ошибка: " + error.message;
+            document.getElementById('main-text').style.color = "red";
         }
 
         function sendData() {
-            if (window.Telegram && window.Telegram.WebApp) {
+            try {
                 window.Telegram.WebApp.sendData("Кнопка нажата!");
-            } else {
-                alert("В браузере кнопка просто показывает это сообщение.");
+            } catch (e) {
+                alert("Ошибка отправки: " + e.message);
             }
         }
     </script>
 </body>
 
 </html>
+
