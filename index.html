@@ -2,140 +2,472 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Запись</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Telegram WebApp SDK -->
+  <title>Запись в секции</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
+    /* --- CSS ПЕРЕМЕННЫЕ (Берутся из темы Telegram) --- */
     :root {
-      --bg: #ffffff;
-      --text: #222;
-      --hint: #777;
-      --btn: #3390ec;
-      --btn-text: #fff;
+      --bg-color: var(--tg-theme-bg-color, #fff);
+      --text-color: var(--tg-theme-text-color, #222);
+      --hint-color: var(--tg-theme-hint-color, #999);
+      --btn-color: var(--tg-theme-button-color, #3390ec);
+      --btn-text-color: var(--tg-theme-button-text-color, #fff);
+      --secondary-bg: var(--tg-theme-secondary-bg-color, #f0f0f0);
+      --red-color: #ff3b30;
     }
 
     body {
       margin: 0;
-      padding: 24px;
-      min-height: 100vh;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
+      padding: 0;
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .box {
-      width: 100%;
-      max-width: 420px;
-    }
-
-    h1 {
-      font-size: 24px;
-      margin-bottom: 12px;
-    }
-
-    p {
-      color: var(--hint);
-      margin-bottom: 24px;
-    }
-
-    button {
-      width: 100%;
-      padding: 16px;
+    /* --- УТИЛИТЫ --- */
+    .container { padding: 16px; padding-bottom: 80px; } /* отступ под таббар */
+    .hidden { display: none !important; }
+    .btn {
+      background: var(--btn-color);
+      color: var(--btn-text-color);
+      border: none;
+      border-radius: 8px;
+      padding: 12px 20px;
       font-size: 16px;
       font-weight: 600;
-      border: none;
-      border-radius: 12px;
-      background: var(--btn);
-      color: var(--btn-text);
+      width: 100%;
       cursor: pointer;
+      margin-top: 10px;
     }
+    .btn:active { opacity: 0.8; }
+    .btn.danger { background: var(--red-color); }
+    .btn.outline { background: transparent; border: 1px solid var(--btn-color); color: var(--btn-color); }
 
-    button:active {
-      opacity: .7;
+    /* --- КАРТОЧКИ --- */
+    .card {
+      background: var(--secondary-bg);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-
-    button[disabled] {
-      opacity: .5;
-      cursor: not-allowed;
-    }
-
-    #log {
-      margin-top: 16px;
-      padding: 10px;
-      background: #eee;
-      font-size: 12px;
-      text-align: left;
+    .card h3 { margin: 0; font-size: 18px; }
+    .card p { margin: 0; color: var(--hint-color); font-size: 14px; }
+    .card-actions { display: flex; gap: 10px; margin-top: 8px; }
+    
+    /* --- ФОРМЫ --- */
+    input, textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
       border-radius: 8px;
-      display: none;
-      white-space: pre-wrap;
+      border: 1px solid var(--hint-color);
+      background: var(--bg-color);
+      color: var(--text-color);
+      font-size: 16px;
+      margin-bottom: 12px;
+      outline: none;
     }
+    input:focus, textarea:focus { border-color: var(--btn-color); }
+
+    /* --- ТАББАР (Меню снизу) --- */
+    .tabbar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 60px;
+      background: var(--secondary-bg);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      border-top: 1px solid rgba(0,0,0,0.1);
+      z-index: 100;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--hint-color);
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .tab-btn.active { color: var(--btn-color); font-weight: bold; }
+    
+    /* --- ИКОНКИ (SVG) --- */
+    svg { width: 24px; height: 24px; fill: currentColor; }
+
+    /* --- ЗАГОЛОВОК РОЛИ --- */
+    .role-switcher {
+      text-align: center;
+      padding: 10px;
+      background: var(--secondary-bg);
+      margin-bottom: 10px;
+      font-size: 12px;
+      color: var(--hint-color);
+    }
+    .role-switcher span { color: var(--btn-color); text-decoration: underline; cursor: pointer;}
   </style>
 </head>
-
 <body>
-  <div class="box">
-    <h1 id="title">Загрузка…</h1>
-    <p id="text">Инициализация Telegram WebApp</p>
 
-    <button id="btn" disabled>Записаться</button>
+  <div class="role-switcher">
+    Текущий режим: <b id="current-role-label">Ученик</b>. 
+    <span onclick="app.toggleRole()">Сменить роль</span>
+  </div>
 
-    <div id="log"></div>
+  <div id="view-student-list" class="container">
+    <h2>Доступные секции</h2>
+    <div id="sections-list"></div>
+  </div>
+
+  <div id="view-student-profile" class="container hidden">
+    <h2>Мои записи</h2>
+    <div id="my-registrations-list">
+      <p style="color:var(--hint-color)">Вы пока никуда не записаны.</p>
+    </div>
+  </div>
+
+  <div id="view-teacher-dashboard" class="container hidden">
+    <h2>Мои секции (Управление)</h2>
+    <button class="btn" onclick="app.openCreateForm()">+ Добавить секцию</button>
+    <br><br>
+    <div id="teacher-sections-list"></div>
+  </div>
+
+  <div id="view-details" class="container hidden">
+    <h1 id="detail-title">Название</h1>
+    <p id="detail-desc" style="white-space: pre-wrap;">Описание</p>
+    <p style="color: var(--hint-color)">Расписание: <span id="detail-schedule"></span></p>
+    
+    <div id="student-actions">
+      <button id="btn-register" class="btn">Записаться</button>
+      <button id="btn-unregister" class="btn danger hidden">Отменить запись</button>
+    </div>
+
+    <div id="teacher-actions" class="hidden">
+      <h3>Записанные ученики:</h3>
+      <div id="students-list"></div>
+      <br>
+      <button class="btn outline" onclick="app.openEditForm()">Редактировать</button>
+      <button class="btn danger" onclick="app.deleteSection()">Удалить секцию</button>
+    </div>
+  </div>
+
+  <div id="view-form" class="container hidden">
+    <h2 id="form-title">Новая секция</h2>
+    <input type="text" id="input-title" placeholder="Название (например: Футбол)">
+    <input type="text" id="input-schedule" placeholder="Расписание (например: Вт, Чт 18:00)">
+    <textarea id="input-desc" rows="5" placeholder="Описание секции, требования..."></textarea>
+    <button class="btn" onclick="app.saveSection()">Сохранить</button>
+  </div>
+
+  <div id="tabbar" class="tabbar">
+    <button class="tab-btn active" onclick="app.switchTab('list')">
+      <svg viewBox="0 0 24 24"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg>
+      <span>Все секции</span>
+    </button>
+    <button class="tab-btn" onclick="app.switchTab('profile')">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+      <span>Мои записи</span>
+    </button>
   </div>
 
 <script>
-(() => {
-  const title = document.getElementById("title");
-  const text  = document.getElementById("text");
-  const btn   = document.getElementById("btn");
+const tg = window.Telegram.WebApp;
+tg.expand();
 
-  if (!window.Telegram || !window.Telegram.WebApp) {
-    title.textContent = "Ошибка";
-    text.textContent = "Откройте страницу внутри Telegram";
-    return;
+// --- MOCK DATABASE (Имитация данных) ---
+const DB = {
+  // Секции
+  sections: [
+    { id: 1, title: 'Футбол', schedule: 'Пн, Ср, Пт 18:00', desc: 'Тренировки на улице.', teacherId: 999 },
+    { id: 2, title: 'Шахматы', schedule: 'Вт, Чт 19:00', desc: 'Для продвинутых.', teacherId: 999 },
+    { id: 3, title: 'Плавание', schedule: 'Сб 10:00', desc: 'Бассейн "Дельфин".', teacherId: 101 }
+  ],
+  // Записи (userId -> [sectionId])
+  registrations: [],
+  // Текущий пользователь (имитация)
+  user: {
+    id: tg.initDataUnsafe?.user?.id || 12345, // Берем из TG или фейк
+    name: tg.initDataUnsafe?.user?.first_name || "Иван Тестов",
+    role: 'student' // 'student' или 'teacher'
   }
+};
 
-  const tg = window.Telegram.WebApp;
+// --- LOGIC ---
+const app = {
+  currentSectionId: null,
 
-  tg.ready();
-  tg.expand();
+  init: () => {
+    // Обработка кнопки "Назад"
+    tg.BackButton.onClick(() => {
+      if (DB.user.role === 'teacher') app.showScreen('view-teacher-dashboard');
+      else app.showScreen('view-student-list');
+      tg.BackButton.hide();
+    });
 
-  // тема
-  const tp = tg.themeParams || {};
-  if (tp.bg_color) document.documentElement.style.setProperty("--bg", tp.bg_color);
-  if (tp.text_color) document.documentElement.style.setProperty("--text", tp.text_color);
-  if (tp.button_color) document.documentElement.style.setProperty("--btn", tp.button_color);
-  if (tp.button_text_color) document.documentElement.style.setProperty("--btn-text", tp.button_text_color);
+    app.renderAll();
+  },
 
-  // пользователь МОЖЕТ быть, МОЖЕТ не быть — это нормально
-  const user = tg.initDataUnsafe?.user;
+  // Смена роли для теста
+  toggleRole: () => {
+    DB.user.role = DB.user.role === 'student' ? 'teacher' : 'student';
+    document.getElementById('current-role-label').innerText = DB.user.role === 'student' ? 'Ученик' : 'Преподаватель';
+    
+    // Переключаем интерфейс
+    if (DB.user.role === 'teacher') {
+      document.getElementById('tabbar').classList.add('hidden');
+      app.showScreen('view-teacher-dashboard');
+    } else {
+      document.getElementById('tabbar').classList.remove('hidden');
+      app.showScreen('view-student-list');
+    }
+  },
 
-  title.textContent = user
-    ? `Привет, ${user.first_name}!`
-    : "Запись";
+  // Навигация (Ученик)
+  switchTab: (tab) => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    if (tab === 'list') {
+      app.showScreen('view-student-list');
+      document.querySelectorAll('.tab-btn')[0].classList.add('active');
+    } else {
+      app.showScreen('view-student-profile');
+      document.querySelectorAll('.tab-btn')[1].classList.add('active');
+      app.renderProfile();
+    }
+  },
 
-  text.textContent = "Нажмите кнопку ниже, чтобы отправить заявку.";
-  btn.disabled = false; // 🔥 ВСЕГДА ВКЛЮЧАЕМ
+  // Показать конкретный экран, скрыть остальные
+  showScreen: (screenId) => {
+    document.querySelectorAll('.container').forEach(el => el.classList.add('hidden'));
+    document.getElementById(screenId).classList.remove('hidden');
+    tg.BackButton.hide(); // по умолчанию скрываем, включаем если надо
+  },
 
-  btn.addEventListener("click", () => {
-    tg.sendData(JSON.stringify({
-      action: "ORDER",
-      has_user: !!user,
-      time: Date.now()
-    }));
-    tg.close();
-  });
-})();
+  // --- RENDERING ---
+
+  renderAll: () => {
+    app.renderStudentList();
+    app.renderTeacherDashboard();
+  },
+
+  // Список для ученика
+  renderStudentList: () => {
+    const list = document.getElementById('sections-list');
+    list.innerHTML = '';
+    DB.sections.forEach(s => {
+      const isReg = DB.registrations.some(r => r.userId === DB.user.id && r.sectionId === s.id);
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <h3>${s.title} ${isReg ? '✅' : ''}</h3>
+        <p>${s.schedule}</p>
+        <button class="btn outline" onclick="app.openDetails(${s.id})">Подробнее</button>
+      `;
+      list.appendChild(card);
+    });
+  },
+
+  // Список "Мои записи"
+  renderProfile: () => {
+    const list = document.getElementById('my-registrations-list');
+    list.innerHTML = '';
+    
+    // Находим секции, где user записан
+    const myRegs = DB.registrations.filter(r => r.userId === DB.user.id);
+    
+    if (myRegs.length === 0) {
+      list.innerHTML = '<p style="color:var(--hint-color)">Нет активных записей</p>';
+      return;
+    }
+
+    myRegs.forEach(reg => {
+      const s = DB.sections.find(sec => sec.id === reg.sectionId);
+      if (!s) return;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <h3>${s.title}</h3>
+        <p>${s.schedule}</p>
+        <div class="card-actions">
+           <button class="btn outline" onclick="app.openDetails(${s.id})">Инфо</button>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  },
+
+  // Дашборд преподавателя
+  renderTeacherDashboard: () => {
+    const list = document.getElementById('teacher-sections-list');
+    list.innerHTML = '';
+    // Препод видит только те секции, где teacherId совпадает (или все, если админ)
+    // Для демо покажем все
+    DB.sections.forEach(s => {
+      const count = DB.registrations.filter(r => r.sectionId === s.id).length;
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <h3>${s.title}</h3>
+        <p>${s.schedule}</p>
+        <p>Учеников: <b>${count}</b></p>
+        <button class="btn outline" onclick="app.openDetails(${s.id})">Управление</button>
+      `;
+      list.appendChild(card);
+    });
+  },
+
+  // Открытие деталей секции
+  openDetails: (id) => {
+    app.currentSectionId = id;
+    const s = DB.sections.find(sec => sec.id === id);
+    if (!s) return;
+
+    document.getElementById('detail-title').innerText = s.title;
+    document.getElementById('detail-desc').innerText = s.desc;
+    document.getElementById('detail-schedule').innerText = s.schedule;
+
+    // Логика отображения кнопок
+    const studentBlock = document.getElementById('student-actions');
+    const teacherBlock = document.getElementById('teacher-actions');
+
+    if (DB.user.role === 'teacher') {
+      studentBlock.classList.add('hidden');
+      teacherBlock.classList.remove('hidden');
+      app.renderStudentsList(id); // Загрузить список студентов
+    } else {
+      teacherBlock.classList.add('hidden');
+      studentBlock.classList.remove('hidden');
+      
+      const isReg = DB.registrations.find(r => r.userId === DB.user.id && r.sectionId === id);
+      const btnReg = document.getElementById('btn-register');
+      const btnUnreg = document.getElementById('btn-unregister');
+
+      if (isReg) {
+        btnReg.classList.add('hidden');
+        btnUnreg.classList.remove('hidden');
+        btnUnreg.onclick = () => app.toggleRegistration(id, false);
+      } else {
+        btnUnreg.classList.add('hidden');
+        btnReg.classList.remove('hidden');
+        btnReg.onclick = () => app.toggleRegistration(id, true);
+      }
+    }
+
+    app.showScreen('view-details');
+    tg.BackButton.show();
+  },
+
+  // --- ACTIONS (STUDENT) ---
+
+  toggleRegistration: (sectionId, isJoining) => {
+    if (isJoining) {
+      DB.registrations.push({ userId: DB.user.id, userName: DB.user.name, sectionId: sectionId });
+      tg.showAlert("✅ Вы успешно записались!"); // Нативный алерт
+      // ТУТ В БУДУЩЕМ: tg.sendData(JSON.stringify({action: 'subscribe', id: sectionId}))
+    } else {
+      DB.registrations = DB.registrations.filter(r => !(r.userId === DB.user.id && r.sectionId === sectionId));
+      tg.showAlert("Вы отменили запись.");
+    }
+    app.openDetails(sectionId); // Обновить кнопки
+    app.renderAll(); // Обновить списки
+  },
+
+  // --- ACTIONS (TEACHER) ---
+
+  renderStudentsList: (sectionId) => {
+    const list = document.getElementById('students-list');
+    list.innerHTML = '';
+    const students = DB.registrations.filter(r => r.sectionId === sectionId);
+    
+    if (students.length === 0) {
+      list.innerHTML = '<i>Пока никто не записался</i>';
+      return;
+    }
+
+    students.forEach(st => {
+      const div = document.createElement('div');
+      div.style = "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 8px 0;";
+      div.innerHTML = `
+        <span>👤 ${st.userName}</span>
+        <button style="color: red; border: none; background: none; font-weight: bold;" 
+          onclick="app.kickStudent(${st.userId}, ${sectionId})">✕</button>
+      `;
+      list.appendChild(div);
+    });
+  },
+
+  kickStudent: (userId, sectionId) => {
+    if(!confirm("Удалить студента из секции?")) return;
+    DB.registrations = DB.registrations.filter(r => !(r.userId === userId && r.sectionId === sectionId));
+    app.renderStudentsList(sectionId);
+    app.renderAll();
+  },
+
+  openCreateForm: () => {
+    app.currentSectionId = null;
+    document.getElementById('form-title').innerText = "Новая секция";
+    document.getElementById('input-title').value = "";
+    document.getElementById('input-schedule').value = "";
+    document.getElementById('input-desc').value = "";
+    app.showScreen('view-form');
+    tg.BackButton.show();
+  },
+
+  openEditForm: () => {
+    const s = DB.sections.find(sec => sec.id === app.currentSectionId);
+    document.getElementById('form-title').innerText = "Редактирование";
+    document.getElementById('input-title').value = s.title;
+    document.getElementById('input-schedule').value = s.schedule;
+    document.getElementById('input-desc').value = s.desc;
+    app.showScreen('view-form');
+    tg.BackButton.show();
+  },
+
+  saveSection: () => {
+    const title = document.getElementById('input-title').value;
+    const schedule = document.getElementById('input-schedule').value;
+    const desc = document.getElementById('input-desc').value;
+
+    if (!title) return tg.showAlert("Введите название");
+
+    if (app.currentSectionId) {
+      // Редактирование
+      const s = DB.sections.find(x => x.id === app.currentSectionId);
+      s.title = title; s.schedule = schedule; s.desc = desc;
+    } else {
+      // Создание
+      const newId = Date.now();
+      DB.sections.push({ id: newId, title, schedule, desc, teacherId: DB.user.id });
+    }
+
+    app.renderTeacherDashboard();
+    app.showScreen('view-teacher-dashboard');
+    tg.BackButton.hide();
+  },
+
+  deleteSection: () => {
+    if(!confirm("Удалить эту секцию и все записи?")) return;
+    DB.sections = DB.sections.filter(s => s.id !== app.currentSectionId);
+    DB.registrations = DB.registrations.filter(r => r.sectionId !== app.currentSectionId);
+    
+    app.renderTeacherDashboard();
+    app.showScreen('view-teacher-dashboard');
+    tg.BackButton.hide();
+  }
+};
+
+// Start
+app.init();
+
 </script>
-
 </body>
 </html>
-
-
-
