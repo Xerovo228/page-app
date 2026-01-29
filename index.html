@@ -94,57 +94,41 @@
   const title = document.getElementById("title");
   const text  = document.getElementById("text");
   const btn   = document.getElementById("btn");
-  const logEl = document.getElementById("log");
-
-  function log(msg) {
-    logEl.style.display = "block";
-    logEl.textContent += msg + "\n";
-  }
 
   if (!window.Telegram || !window.Telegram.WebApp) {
     title.textContent = "Ошибка";
-    text.textContent = "Откройте страницу через кнопку WebApp в Telegram";
-    log("Telegram.WebApp не найден");
+    text.textContent = "Откройте страницу внутри Telegram";
     return;
   }
 
   const tg = window.Telegram.WebApp;
 
-  // Сообщаем Telegram что WebApp готов
   tg.ready();
   tg.expand();
 
-  // Применяем тему Telegram
+  // тема
   const tp = tg.themeParams || {};
   if (tp.bg_color) document.documentElement.style.setProperty("--bg", tp.bg_color);
   if (tp.text_color) document.documentElement.style.setProperty("--text", tp.text_color);
-  if (tp.hint_color) document.documentElement.style.setProperty("--hint", tp.hint_color);
   if (tp.button_color) document.documentElement.style.setProperty("--btn", tp.button_color);
   if (tp.button_text_color) document.documentElement.style.setProperty("--btn-text", tp.button_text_color);
 
-  // Получаем пользователя
+  // пользователь МОЖЕТ быть, МОЖЕТ не быть — это нормально
   const user = tg.initDataUnsafe?.user;
 
-  if (!user) {
-    title.textContent = "Ошибка открытия";
-    text.textContent = "Откройте приложение через кнопку WebApp";
-    log("initDataUnsafe.user отсутствует");
-    return;
-  }
+  title.textContent = user
+    ? Привет, ${user.first_name}!
+    : "Запись";
 
-  // Всё ОК
-  title.textContent = Привет, ${user.first_name}!;
   text.textContent = "Нажмите кнопку ниже, чтобы отправить заявку.";
-  btn.disabled = false;
+  btn.disabled = false; // 🔥 ВСЕГДА ВКЛЮЧАЕМ
 
   btn.addEventListener("click", () => {
-    const payload = {
+    tg.sendData(JSON.stringify({
       action: "ORDER",
-      user_id: user.id,
+      has_user: !!user,
       time: Date.now()
-    };
-
-    tg.sendData(JSON.stringify(payload));
+    }));
     tg.close();
   });
 })();
@@ -152,3 +136,4 @@
 
 </body>
 </html>
+
