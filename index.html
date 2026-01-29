@@ -47,7 +47,7 @@
             // Проверяем, есть ли данные пользователя (мы в приложении?)
             if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
                 // ДА, МЫ В ТЕЛЕГРАМЕ
-                header.innerText = 'Привет, ${tg.initDataUnsafe.user.first_name}!';
+                header.innerText = Привет, ${tg.initDataUnsafe.user.first_name}!;
             } else {
                 // Скрипт есть, но пользователя нет (отладка)
                 header.innerText = "Работает! (Режим браузера)";
@@ -68,4 +68,5 @@
         }
     </script>
 </body>
+
 </html>
