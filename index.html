@@ -181,48 +181,105 @@
   </div>
 
 <script>
+// 🔥 ВСТАВЬ СЮДА СВОЮ ДЛИННУЮ ССЫЛКУ, КОТОРУЮ ДАЛ ГУГЛ (заканчивается на /exec)
+const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbwyhKo0oDhCe8Q8VN-U23YuESZULY7uOzIiw1dx2BOLQ0olm1uDismdJ91_53p_7k1J/exec";
+
 const tg = window.Telegram.WebApp;
 tg.expand();
 
-// --- MOCK DATABASE (Имитация данных) ---
+// --- БАЗА ДАННЫХ (Теперь это кэш, данные приходят из Гугла) ---
 const DB = {
-  // Секции
-  sections: [
-    { id: 1, title: 'Футбол', schedule: 'Пн, Ср, Пт 18:00', desc: 'Тренировки на улице.', teacherId: 999 },
-    { id: 2, title: 'Шахматы', schedule: 'Вт, Чт 19:00', desc: 'Для продвинутых.', teacherId: 999 },
-    { id: 3, title: 'Плавание', schedule: 'Сб 10:00', desc: 'Бассейн "Дельфин".', teacherId: 101 }
-  ],
-  // Записи (userId -> [sectionId])
-  registrations: [],
-  // Текущий пользователь (имитация)
+  sections: [],     // Сюда загрузятся секции из Таблицы
+  registrations: [], // Сюда загрузятся твои записи
   user: {
-    id: tg.initDataUnsafe?.user?.id || 12345, // Берем из TG или фейк
-    name: tg.initDataUnsafe?.user?.first_name || "Иван Тестов",
-    role: 'student' // 'student' или 'teacher'
+    id: tg.initDataUnsafe?.user?.id || 12345, 
+    name: tg.initDataUnsafe?.user?.first_name || "Guest",
+    role: 'student' 
   }
 };
 
-// --- LOGIC ---
 const app = {
   currentSectionId: null,
 
   init: () => {
-    // Обработка кнопки "Назад"
+    // Настройка кнопки "Назад"
     tg.BackButton.onClick(() => {
       if (DB.user.role === 'teacher') app.showScreen('view-teacher-dashboard');
       else app.showScreen('view-student-list');
       tg.BackButton.hide();
     });
 
-    app.renderAll();
+    // 🔥 ГЛАВНОЕ ИЗМЕНЕНИЕ: Сразу качаем данные с сервера
+    app.loadData();
   },
 
-  // Смена роли для теста
+  // --- ЗАГРУЗКА ДАННЫХ ИЗ GOOGLE SHEETS ---
+  loadData: () => {
+    // Показываем, что идет загрузка (можно добавить спиннер, пока просто текст)
+    document.getElementById('sections-list').innerHTML = '<p style="text-align:center">Загрузка данных...</p>';
+
+    // 1. Запрос списка секций
+    fetch(`${GOOGLE_URL}?action=getSections`)
+      .then(res => res.json())
+      .then(sectionsData => {
+        DB.sections = sectionsData; // Сохраняем секции
+        app.renderAll(); // Рисуем экран
+      })
+      .catch(err => {
+        document.getElementById('sections-list').innerHTML = `<p style="color:red">Ошибка связи: ${err}</p>`;
+      });
+
+    // 2. Запрос моих записей (чтобы знать, где ставить галочки ✅)
+    if (DB.user.id) {
+      fetch(`${GOOGLE_URL}?action=getMyRegs&userId=${DB.user.id}`)
+        .then(res => res.json())
+        .then(regsData => {
+          // Превращаем ответ сервера в удобный формат
+          DB.registrations = regsData.map(r => ({ userId: DB.user.id, sectionId: r.id }));
+          app.renderAll(); // Обновляем галочки
+        });
+    }
+  },
+
+  // --- ОТПРАВКА ДАННЫХ В GOOGLE SHEETS ---
+  toggleRegistration: (sectionId, isJoining) => {
+    // Показываем анимацию загрузки на главной кнопке Телеграма
+    tg.MainButton.showProgress();
+
+    fetch(GOOGLE_URL, {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: DB.user.id,
+        userName: DB.user.name,
+        sectionId: sectionId,
+        action: isJoining ? 'JOIN' : 'LEAVE'
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      tg.MainButton.hideProgress();
+      
+      if(data.status === 'success') {
+        tg.showAlert(isJoining ? "✅ Вы записаны!" : "❌ Запись отменена");
+        
+        // Обновляем данные, чтобы интерфейс перерисовался правильно
+        app.loadData(); 
+        app.showScreen('view-student-list');
+      } else {
+        tg.showAlert("Ошибка сервера: " + data.error);
+      }
+    })
+    .catch(err => {
+      tg.MainButton.hideProgress();
+      tg.showAlert("Ошибка сети!");
+    });
+  },
+
+  // --- ОСТАЛЬНАЯ ЛОГИКА ИНТЕРФЕЙСА (Осталась почти без изменений) ---
+
   toggleRole: () => {
     DB.user.role = DB.user.role === 'student' ? 'teacher' : 'student';
     document.getElementById('current-role-label').innerText = DB.user.role === 'student' ? 'Ученик' : 'Преподаватель';
-    
-    // Переключаем интерфейс
     if (DB.user.role === 'teacher') {
       document.getElementById('tabbar').classList.add('hidden');
       app.showScreen('view-teacher-dashboard');
@@ -232,7 +289,6 @@ const app = {
     }
   },
 
-  // Навигация (Ученик)
   switchTab: (tab) => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     if (tab === 'list') {
@@ -245,26 +301,27 @@ const app = {
     }
   },
 
-  // Показать конкретный экран, скрыть остальные
   showScreen: (screenId) => {
     document.querySelectorAll('.container').forEach(el => el.classList.add('hidden'));
     document.getElementById(screenId).classList.remove('hidden');
-    tg.BackButton.hide(); // по умолчанию скрываем, включаем если надо
+    tg.BackButton.hide();
   },
-
-  // --- RENDERING ---
 
   renderAll: () => {
     app.renderStudentList();
     app.renderTeacherDashboard();
   },
 
-  // Список для ученика
   renderStudentList: () => {
     const list = document.getElementById('sections-list');
     list.innerHTML = '';
+    if (DB.sections.length === 0) {
+       list.innerHTML = '<p>Нет доступных секций</p>';
+       return;
+    }
     DB.sections.forEach(s => {
-      const isReg = DB.registrations.some(r => r.userId === DB.user.id && r.sectionId === s.id);
+      // Проверяем, записан ли я (сравниваем ID)
+      const isReg = DB.registrations.some(r => r.sectionId == s.id);
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
@@ -276,22 +333,19 @@ const app = {
     });
   },
 
-  // Список "Мои записи"
   renderProfile: () => {
     const list = document.getElementById('my-registrations-list');
     list.innerHTML = '';
     
-    // Находим секции, где user записан
-    const myRegs = DB.registrations.filter(r => r.userId === DB.user.id);
+    // Показываем только те секции, ID которых есть в registrations
+    const mySecs = DB.sections.filter(s => DB.registrations.some(r => r.sectionId == s.id));
     
-    if (myRegs.length === 0) {
+    if (mySecs.length === 0) {
       list.innerHTML = '<p style="color:var(--hint-color)">Нет активных записей</p>';
       return;
     }
 
-    myRegs.forEach(reg => {
-      const s = DB.sections.find(sec => sec.id === reg.sectionId);
-      if (!s) return;
+    mySecs.forEach(s => {
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
@@ -305,49 +359,44 @@ const app = {
     });
   },
 
-  // Дашборд преподавателя
   renderTeacherDashboard: () => {
+    // ВНИМАНИЕ: Текущий скрипт только читает секции. Создание новых пока работает только визуально.
     const list = document.getElementById('teacher-sections-list');
     list.innerHTML = '';
-    // Препод видит только те секции, где teacherId совпадает (или все, если админ)
-    // Для демо покажем все
     DB.sections.forEach(s => {
-      const count = DB.registrations.filter(r => r.sectionId === s.id).length;
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
         <h3>${s.title}</h3>
         <p>${s.schedule}</p>
-        <p>Учеников: <b>${count}</b></p>
         <button class="btn outline" onclick="app.openDetails(${s.id})">Управление</button>
       `;
       list.appendChild(card);
     });
   },
 
-  // Открытие деталей секции
   openDetails: (id) => {
     app.currentSectionId = id;
-    const s = DB.sections.find(sec => sec.id === id);
+    // Ищем секцию по ID (важно: приведение типов, т.к. из гугла может прийти строка "101")
+    const s = DB.sections.find(sec => sec.id == id);
     if (!s) return;
 
     document.getElementById('detail-title').innerText = s.title;
     document.getElementById('detail-desc').innerText = s.desc;
     document.getElementById('detail-schedule').innerText = s.schedule;
 
-    // Логика отображения кнопок
     const studentBlock = document.getElementById('student-actions');
     const teacherBlock = document.getElementById('teacher-actions');
 
     if (DB.user.role === 'teacher') {
       studentBlock.classList.add('hidden');
       teacherBlock.classList.remove('hidden');
-      app.renderStudentsList(id); // Загрузить список студентов
+      document.getElementById('students-list').innerHTML = "<p>Функция просмотра списка скоро будет доступна</p>";
     } else {
       teacherBlock.classList.add('hidden');
       studentBlock.classList.remove('hidden');
       
-      const isReg = DB.registrations.find(r => r.userId === DB.user.id && r.sectionId === id);
+      const isReg = DB.registrations.some(r => r.sectionId == id);
       const btnReg = document.getElementById('btn-register');
       const btnUnreg = document.getElementById('btn-unregister');
 
@@ -366,52 +415,7 @@ const app = {
     tg.BackButton.show();
   },
 
-  // --- ACTIONS (STUDENT) ---
-
-  toggleRegistration: (sectionId, isJoining) => {
-    if (isJoining) {
-      DB.registrations.push({ userId: DB.user.id, userName: DB.user.name, sectionId: sectionId });
-      tg.showAlert("✅ Вы успешно записались!"); // Нативный алерт
-      // ТУТ В БУДУЩЕМ: tg.sendData(JSON.stringify({action: 'subscribe', id: sectionId}))
-    } else {
-      DB.registrations = DB.registrations.filter(r => !(r.userId === DB.user.id && r.sectionId === sectionId));
-      tg.showAlert("Вы отменили запись.");
-    }
-    app.openDetails(sectionId); // Обновить кнопки
-    app.renderAll(); // Обновить списки
-  },
-
-  // --- ACTIONS (TEACHER) ---
-
-  renderStudentsList: (sectionId) => {
-    const list = document.getElementById('students-list');
-    list.innerHTML = '';
-    const students = DB.registrations.filter(r => r.sectionId === sectionId);
-    
-    if (students.length === 0) {
-      list.innerHTML = '<i>Пока никто не записался</i>';
-      return;
-    }
-
-    students.forEach(st => {
-      const div = document.createElement('div');
-      div.style = "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 8px 0;";
-      div.innerHTML = `
-        <span>👤 ${st.userName}</span>
-        <button style="color: red; border: none; background: none; font-weight: bold;" 
-          onclick="app.kickStudent(${st.userId}, ${sectionId})">✕</button>
-      `;
-      list.appendChild(div);
-    });
-  },
-
-  kickStudent: (userId, sectionId) => {
-    if(!confirm("Удалить студента из секции?")) return;
-    DB.registrations = DB.registrations.filter(r => !(r.userId === userId && r.sectionId === sectionId));
-    app.renderStudentsList(sectionId);
-    app.renderAll();
-  },
-
+  // --- ФУНКЦИИ УЧИТЕЛЯ (Пока работают только локально) ---
   openCreateForm: () => {
     app.currentSectionId = null;
     document.getElementById('form-title').innerText = "Новая секция";
@@ -423,51 +427,22 @@ const app = {
   },
 
   openEditForm: () => {
-    const s = DB.sections.find(sec => sec.id === app.currentSectionId);
-    document.getElementById('form-title').innerText = "Редактирование";
-    document.getElementById('input-title').value = s.title;
-    document.getElementById('input-schedule').value = s.schedule;
-    document.getElementById('input-desc').value = s.desc;
-    app.showScreen('view-form');
-    tg.BackButton.show();
+     alert("Редактирование пока недоступно в этой версии API");
   },
 
   saveSection: () => {
-    const title = document.getElementById('input-title').value;
-    const schedule = document.getElementById('input-schedule').value;
-    const desc = document.getElementById('input-desc').value;
-
-    if (!title) return tg.showAlert("Введите название");
-
-    if (app.currentSectionId) {
-      // Редактирование
-      const s = DB.sections.find(x => x.id === app.currentSectionId);
-      s.title = title; s.schedule = schedule; s.desc = desc;
-    } else {
-      // Создание
-      const newId = Date.now();
-      DB.sections.push({ id: newId, title, schedule, desc, teacherId: DB.user.id });
-    }
-
-    app.renderTeacherDashboard();
+    alert("Сохранение новых секций требует обновления серверного скрипта. Пока это работает только в режиме просмотра.");
     app.showScreen('view-teacher-dashboard');
-    tg.BackButton.hide();
   },
 
   deleteSection: () => {
-    if(!confirm("Удалить эту секцию и все записи?")) return;
-    DB.sections = DB.sections.filter(s => s.id !== app.currentSectionId);
-    DB.registrations = DB.registrations.filter(r => r.sectionId !== app.currentSectionId);
-    
-    app.renderTeacherDashboard();
-    app.showScreen('view-teacher-dashboard');
-    tg.BackButton.hide();
+    alert("Удаление требует обновления серверного скрипта.");
   }
 };
 
-// Start
+// Запуск приложения
 app.init();
-
 </script>
 </body>
 </html>
+
