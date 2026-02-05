@@ -7,7 +7,7 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
-    /* --- CSS ПЕРЕМЕННЫЕ (Берутся из темы Telegram) --- */
+    /* --- CSS ПЕРЕМЕННЫЕ --- */
     :root {
       --bg-color: var(--tg-theme-bg-color, #fff);
       --text-color: var(--tg-theme-text-color, #222);
@@ -28,7 +28,7 @@
     }
 
     /* --- УТИЛИТЫ --- */
-    .container { padding: 16px; padding-bottom: 80px; } /* отступ под таббар */
+    .container { padding: 16px; padding-bottom: 80px; }
     .hidden { display: none !important; }
     .btn {
       background: var(--btn-color);
@@ -58,7 +58,6 @@
     }
     .card h3 { margin: 0; font-size: 18px; }
     .card p { margin: 0; color: var(--hint-color); font-size: 14px; }
-    .card-actions { display: flex; gap: 10px; margin-top: 8px; }
     
     /* --- ФОРМЫ --- */
     input, textarea {
@@ -74,8 +73,13 @@
       outline: none;
     }
     input:focus, textarea:focus { border-color: var(--btn-color); }
+    
+    /* Красная рамка для поля пароля */
+    .password-input {
+        border: 1px solid var(--red-color);
+    }
 
-    /* --- ТАББАР (Меню снизу) --- */
+    /* --- ТАББАР --- */
     .tabbar {
       position: fixed;
       bottom: 0;
@@ -100,8 +104,6 @@
       gap: 4px;
     }
     .tab-btn.active { color: var(--btn-color); font-weight: bold; }
-    
-    /* --- ИКОНКИ (SVG) --- */
     svg { width: 24px; height: 24px; fill: currentColor; }
 
     /* --- ЗАГОЛОВОК РОЛИ --- */
@@ -166,6 +168,10 @@
     <input type="text" id="input-title" placeholder="Название (например: Футбол)">
     <input type="text" id="input-schedule" placeholder="Расписание (например: Вт, Чт 18:00)">
     <textarea id="input-desc" rows="5" placeholder="Описание секции, требования..."></textarea>
+    
+    <p style="font-size:12px; color:#ff3b30; margin-bottom:4px;">Придумайте пароль (чтобы другие не удалили):</p>
+    <input type="password" id="input-password" class="password-input" placeholder="Пароль секции">
+    
     <button class="btn" onclick="app.saveSection()">Сохранить</button>
   </div>
 
@@ -181,8 +187,11 @@
   </div>
 
 <script>
-// ВСТАВЬ СВОЮ ССЫЛКУ ЕСЛИ ОНА ПОТЕРЯЛАСЬ, ЕСЛИ НЕТ - ОСТАВЬ КАК БЫЛО
+// 🔥 ТВОЯ ССЫЛКА НА GOOGLE SCRIPT (Проверь, что в скрипте сделано "New Version")
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbwyhKo0oDhCe8Q8VN-U23YuESZULY7uOzIiw1dx2BOLQ0olm1uDismdJ91_53p_7k1J/exec"; 
+
+// 🔐 ПАРОЛЬ ПРЕПОДАВАТЕЛЯ (Чтобы войти в режим учителя)
+const TEACHER_ACCESS_CODE = "1234";
 
 const tg = window.Telegram.WebApp;
 tg.expand();
@@ -192,7 +201,7 @@ const DB = {
   registrations: [],
   user: {
     id: tg.initDataUnsafe?.user?.id || 12345, 
-    name: tg.initDataUnsafe?.user?.first_name || "Teacher", // Временно имя
+    name: tg.initDataUnsafe?.user?.first_name || "Guest",
     role: 'student' 
   }
 };
@@ -212,7 +221,6 @@ const app = {
   loadData: () => {
     document.getElementById('sections-list').innerHTML = '<p style="text-align:center">Загрузка...</p>';
     
-    // Грузим секции
     fetch(`${GOOGLE_URL}?action=getSections`)
       .then(res => res.json())
       .then(data => {
@@ -220,7 +228,6 @@ const app = {
         app.renderAll();
       });
 
-    // Грузим мои записи
     if (DB.user.id) {
       fetch(`${GOOGLE_URL}?action=getMyRegs&userId=${DB.user.id}`)
         .then(res => res.json())
@@ -231,72 +238,103 @@ const app = {
     }
   },
 
-  // --- ФУНКЦИИ УЧИТЕЛЯ (НОВЫЕ) ---
+  // --- СМЕНА РОЛИ (ТЕПЕРЬ С ПАРОЛЕМ) ---
+  toggleRole: () => {
+    if (DB.user.role === 'student') {
+      // Спрашиваем пароль
+      const pass = prompt("Введите пароль преподавателя:");
+      // Проверяем пароль (1234)
+      if (pass !== TEACHER_ACCESS_CODE) {
+        alert("Неверный пароль!");
+        return;
+      }
+      DB.user.role = 'teacher';
+    } else {
+      DB.user.role = 'student';
+    }
+    
+    document.getElementById('current-role-label').innerText = DB.user.role === 'student' ? 'Ученик' : 'Преподаватель';
+    
+    if (DB.user.role === 'teacher') {
+      document.getElementById('tabbar').classList.add('hidden');
+      app.showScreen('view-teacher-dashboard');
+    } else {
+      document.getElementById('tabbar').classList.remove('hidden');
+      app.showScreen('view-student-list');
+    }
+  },
 
-  // 1. Сохранить (Создать или Редактировать)
+  // --- ФУНКЦИИ УЧИТЕЛЯ ---
+
   saveSection: () => {
     const title = document.getElementById('input-title').value;
     const schedule = document.getElementById('input-schedule').value;
     const desc = document.getElementById('input-desc').value;
+    // Берем пароль из нового поля
+    const password = document.getElementById('input-password').value;
 
     if (!title) return tg.showAlert("Введите название");
+    if (!password) return tg.showAlert("Укажите пароль секции!");
 
     tg.MainButton.showProgress();
 
-    // Определяем действие: если есть ID - это редактирование, если нет - создание
     const actionType = app.currentSectionId ? 'editSection' : 'createSection';
     
     fetch(GOOGLE_URL, {
       method: 'POST',
       body: JSON.stringify({
         action: actionType,
-        id: app.currentSectionId, // Нужен только для edit
+        id: app.currentSectionId,
         title: title,
         schedule: schedule,
-        desc: desc
+        desc: desc,
+        password: password // Отправляем пароль в Google
       })
     })
     .then(res => res.json())
     .then(data => {
       tg.MainButton.hideProgress();
       if (data.status === 'success') {
-        tg.showAlert(app.currentSectionId ? "Сохранено!" : "Создано!");
-        app.loadData(); // Перезагружаем список
+        tg.showAlert(app.currentSectionId ? "Изменения сохранены!" : "Секция создана!");
+        app.loadData();
         app.showScreen('view-teacher-dashboard');
       } else {
-        tg.showAlert("Ошибка: " + data.error);
+        // Выводим ошибку (например, "Неверный пароль")
+        alert("Ошибка: " + (data.error || "Неизвестная ошибка"));
       }
     });
   },
 
-  // 2. Удалить секцию
   deleteSection: () => {
-    if(!confirm("Точно удалить?")) return;
+    // Спрашиваем пароль перед удалением
+    const pass = prompt("Введите пароль от этой секции для подтверждения удаления:");
+    if (!pass) return;
     
     tg.MainButton.showProgress();
     fetch(GOOGLE_URL, {
       method: 'POST',
       body: JSON.stringify({
         action: 'deleteSection',
-        id: app.currentSectionId
+        id: app.currentSectionId,
+        password: pass // Отправляем пароль на проверку
       })
     })
     .then(res => res.json())
     .then(data => {
       tg.MainButton.hideProgress();
       if (data.status === 'success') {
-        tg.showAlert("Удалено");
+        tg.showAlert("Секция удалена");
         app.loadData();
         app.showScreen('view-teacher-dashboard');
+      } else {
+         alert("Ошибка: " + (data.error || "Неверный пароль"));
       }
     });
   },
 
-  // 3. Загрузить список учеников для конкретной секции
   renderStudentsList: (sectionId) => {
     const list = document.getElementById('students-list');
     list.innerHTML = 'Загрузка списка...';
-
     fetch(`${GOOGLE_URL}?action=getStudents&sectionId=${sectionId}`)
       .then(res => res.json())
       .then(students => {
@@ -318,13 +356,9 @@ const app = {
       });
   },
 
-  // 4. Выгнать ученика
   kickStudent: (userId, sectionId) => {
     if(!confirm("Удалить студента?")) return;
-    
-    // Визуально удаляем сразу
     document.getElementById('students-list').innerHTML = "Удаление...";
-
     fetch(GOOGLE_URL, {
       method: 'POST',
       body: JSON.stringify({
@@ -335,11 +369,11 @@ const app = {
     })
     .then(res => res.json())
     .then(data => {
-       app.renderStudentsList(sectionId); // Обновляем список
+       app.renderStudentsList(sectionId);
     });
   },
 
-  // --- ФУНКЦИИ УЧЕНИКА (ОСТАЮТСЯ ТЕМИ ЖЕ) ---
+  // --- ФУНКЦИИ УЧЕНИКА ---
   toggleRegistration: (sectionId, isJoining) => {
     tg.MainButton.showProgress();
     fetch(GOOGLE_URL, {
@@ -362,19 +396,7 @@ const app = {
     });
   },
 
-  // --- НАВИГАЦИЯ И ОТРИСОВКА (КАК БЫЛО) ---
-  toggleRole: () => {
-    DB.user.role = DB.user.role === 'student' ? 'teacher' : 'student';
-    document.getElementById('current-role-label').innerText = DB.user.role === 'student' ? 'Ученик' : 'Преподаватель';
-    if (DB.user.role === 'teacher') {
-      document.getElementById('tabbar').classList.add('hidden');
-      app.showScreen('view-teacher-dashboard');
-    } else {
-      document.getElementById('tabbar').classList.remove('hidden');
-      app.showScreen('view-student-list');
-    }
-  },
-
+  // --- НАВИГАЦИЯ ---
   switchTab: (tab) => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     if (tab === 'list') {
@@ -453,7 +475,7 @@ const app = {
     if (DB.user.role === 'teacher') {
       studentBlock.classList.add('hidden');
       teacherBlock.classList.remove('hidden');
-      app.renderStudentsList(id); // 🔥 ТЕПЕРЬ ЭТО РАБОТАЕТ
+      app.renderStudentsList(id);
     } else {
       teacherBlock.classList.add('hidden');
       studentBlock.classList.remove('hidden');
@@ -473,6 +495,8 @@ const app = {
     document.getElementById('input-title').value = "";
     document.getElementById('input-schedule').value = "";
     document.getElementById('input-desc').value = "";
+    document.getElementById('input-password').value = ""; // Очищаем пароль
+    document.getElementById('input-password').placeholder = "Придумайте пароль для секции";
     app.showScreen('view-form');
     tg.BackButton.show();
   },
@@ -483,6 +507,8 @@ const app = {
     document.getElementById('input-title').value = s.title;
     document.getElementById('input-schedule').value = s.schedule;
     document.getElementById('input-desc').value = s.desc;
+    document.getElementById('input-password').value = ""; // Сбрасываем поле
+    document.getElementById('input-password').placeholder = "Введите пароль для сохранения изменений";
     app.showScreen('view-form');
     tg.BackButton.show();
   }
@@ -492,7 +518,3 @@ app.init();
 </script>
 </body>
 </html>
-
-
-
-
