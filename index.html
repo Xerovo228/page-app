@@ -15,6 +15,7 @@
       --btn-text-color: var(--tg-theme-button-text-color, #fff);
       --secondary-bg: var(--tg-theme-secondary-bg-color, #f0f0f0);
       --red-color: #ff3b30;
+      --green-color: #34c759;
     }
     body { margin: 0; padding: 0; background: var(--bg-color); color: var(--text-color); font-family: -apple-system, sans-serif; }
     .container { padding: 16px; padding-bottom: 80px; }
@@ -24,31 +25,26 @@
     .btn:active { opacity: 0.8; }
     .btn.danger { background: var(--red-color); }
     .btn.outline { background: transparent; border: 1px solid var(--btn-color); color: var(--btn-color); }
-    .btn:disabled { opacity: 0.5; cursor: wait; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; background: var(--hint-color); }
     
     .card { background: var(--secondary-bg); border-radius: 12px; padding: 16px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
-    .card h3 { margin: 0; font-size: 18px; }
+    .card-header { display: flex; justify-content: space-between; align-items: start; }
+    .card h3 { margin: 0; font-size: 18px; flex: 1; }
     .card p { margin: 0; color: var(--hint-color); font-size: 14px; }
     
+    /* Бейджик с количеством мест */
+    .badge { 
+      font-size: 12px; font-weight: bold; padding: 4px 8px; border-radius: 6px; background: #ddd; color: #555; white-space: nowrap; margin-left: 8px;
+    }
+    .badge.green { background: rgba(52, 199, 89, 0.2); color: var(--green-color); }
+    .badge.red { background: rgba(255, 59, 48, 0.2); color: var(--red-color); }
+
     input, textarea { width: 100%; box-sizing: border-box; padding: 12px; border-radius: 8px; border: 1px solid var(--hint-color); background: var(--bg-color); color: var(--text-color); font-size: 16px; margin-bottom: 12px; outline: none; }
     input:focus, textarea:focus { border-color: var(--btn-color); }
     .password-input { border: 1px solid var(--red-color); }
     
-    /* --- СТИЛИ ДЛЯ МОДАЛЬНОГО ОКНА РЕГИСТРАЦИИ --- */
-    .modal-overlay {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: var(--bg-color);
-      z-index: 2000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-    .modal-box {
-      width: 100%;
-      max-width: 400px;
-      text-align: center;
-    }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-color); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .modal-box { width: 100%; max-width: 400px; text-align: center; }
 
     .tabbar { position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: var(--secondary-bg); display: flex; justify-content: space-around; align-items: center; border-top: 1px solid rgba(0,0,0,0.1); z-index: 100; }
     .tab-btn { background: none; border: none; color: var(--hint-color); font-size: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -63,8 +59,7 @@
   <div id="view-registration" class="modal-overlay hidden">
     <div class="modal-box">
       <h2>Давайте знакомиться!</h2>
-      <p style="color:var(--hint-color); margin-bottom:20px;">Введите ваше реальное Имя и Фамилию, чтобы преподаватель знал, кто записывается.</p>
-      
+      <p style="color:var(--hint-color); margin-bottom:20px;">Введите ваше реальное Имя и Фамилию.</p>
       <input type="text" id="reg-name" placeholder="Например: Иванов Иван">
       <button class="btn" onclick="app.saveUserName()">Продолжить</button>
     </div>
@@ -95,12 +90,15 @@
 
   <div id="view-details" class="container hidden">
     <h1 id="detail-title">Название</h1>
+    <div id="detail-badge" style="margin-bottom: 10px; display: inline-block;"></div>
+    
     <p id="detail-desc" style="white-space: pre-wrap;">Описание</p>
     <p style="color: var(--hint-color)">Расписание: <span id="detail-schedule"></span></p>
     
     <div id="student-actions">
       <button id="btn-register" class="btn">Записаться</button>
       <button id="btn-unregister" class="btn danger hidden">Отменить запись</button>
+      <p id="msg-full" class="hidden" style="color: var(--red-color); text-align: center; font-weight: bold;">⛔ Мест больше нет</p>
     </div>
 
     <div id="teacher-actions" class="hidden">
@@ -117,7 +115,11 @@
     <input type="text" id="input-title" placeholder="Название">
     <input type="text" id="input-schedule" placeholder="Расписание">
     <textarea id="input-desc" rows="5" placeholder="Описание"></textarea>
-    <p style="font-size:12px; color:#ff3b30; margin-bottom:4px;">Пароль для управления секцией:</p>
+    
+    <p style="font-size:12px; color:var(--hint-color); margin-bottom:4px;">Максимум человек (0 = безлимит):</p>
+    <input type="number" id="input-limit" placeholder="Например: 10">
+
+    <p style="font-size:12px; color:#ff3b30; margin-bottom:4px;">Пароль для управления:</p>
     <input type="password" id="input-password" class="password-input" placeholder="Пароль">
     <button class="btn" onclick="app.saveSection()">Сохранить</button>
   </div>
@@ -134,7 +136,7 @@
   </div>
 
 <script>
-// 🔥 ССЫЛКА НА ТВОЙ СКРИПТ (Проверь чтобы была актуальная)
+// 🔥 ВСТАВЬ СВОЮ ССЫЛКУ ИЗ GOOGLE
 const GOOGLE_URL = "https://script.google.com/macros/s/AKfycbwyhKo0oDhCe8Q8VN-U23YuESZULY7uOzIiw1dx2BOLQ0olm1uDismdJ91_53p_7k1J/exec"; 
 const TEACHER_ACCESS_CODE = "1234";
 
@@ -146,7 +148,7 @@ const DB = {
   registrations: [],
   user: {
     id: tg.initDataUnsafe?.user?.id || 12345, 
-    name: "Guest", // Будет заменено на реальное имя
+    name: "Guest", 
     role: 'student' 
   }
 };
@@ -161,25 +163,16 @@ const app = {
       else app.showScreen('view-student-list');
       tg.BackButton.hide();
     });
-
-    // 🔥 ПРОВЕРКА ИМЕНИ ПРИ ЗАПУСКЕ
     app.checkUserName();
   },
 
-  // --- ЛОГИКА РЕГИСТРАЦИИ ИМЕНИ ---
-  
   checkUserName: () => {
-    // Пробуем достать имя из памяти телефона
     const savedName = localStorage.getItem('student_full_name');
-    
     if (savedName) {
-      // Имя есть - используем его
       DB.user.name = savedName;
       document.getElementById('display-username').innerText = savedName;
-      app.loadData(); // Грузим данные
+      app.loadData();
     } else {
-      // Имени нет - показываем окно регистрации
-      // Скрываем всё, показываем модалку
       document.getElementById('view-registration').classList.remove('hidden');
       document.getElementById('tabbar').classList.add('hidden');
     }
@@ -188,65 +181,47 @@ const app = {
   saveUserName: () => {
     const input = document.getElementById('reg-name');
     const name = input.value.trim();
-    
-    if (name.length < 2) {
-      tg.showAlert("Пожалуйста, введите полное имя");
-      return;
-    }
-
-    // Сохраняем в память навсегда
+    if (name.length < 2) return tg.showAlert("Введите полное имя");
     localStorage.setItem('student_full_name', name);
     DB.user.name = name;
-    
-    // Прячем модалку, показываем интерфейс
     document.getElementById('view-registration').classList.add('hidden');
     document.getElementById('display-username').innerText = name;
     document.getElementById('tabbar').classList.remove('hidden');
-    
     app.loadData();
   },
 
   resetName: () => {
-    if(confirm("Хотите изменить свое имя?")) {
+    if(confirm("Изменить имя?")) {
       localStorage.removeItem('student_full_name');
-      window.location.reload(); // Перезагружаем страницу, чтобы снова вылезло окно
+      window.location.reload();
     }
   },
-
-  // --- ЗАГРУЗКА ДАННЫХ ---
 
   loadData: () => {
     document.getElementById('sections-list').innerHTML = '<p style="text-align:center">Загрузка...</p>';
-    fetch(`${GOOGLE_URL}?action=getSections`).then(res => res.json()).then(data => {
-      DB.sections = data;
-      app.renderAll();
-    });
-    if (DB.user.id) {
-      fetch(`${GOOGLE_URL}?action=getMyRegs&userId=${DB.user.id}`).then(res => res.json()).then(data => {
-        DB.registrations = data.map(r => ({ sectionId: r.id }));
+    // Используем getAllData, чтобы получить секции и их заполненность
+    fetch(`${GOOGLE_URL}?action=getAllData&userId=${DB.user.id}`)
+      .then(res => res.json())
+      .then(data => {
+        DB.sections = data.sections || [];
+        DB.registrations = data.registrations || [];
         app.renderAll();
       });
-    }
   },
 
-  // --- ЛОГИКА ЗАПИСИ ---
   toggleRegistration: (sectionId, isJoining) => {
     if (app.isLoading) return; 
-    
-    app.isLoading = true; 
-    tg.MainButton.showProgress();
-    
+    app.isLoading = true; tg.MainButton.showProgress();
     const btnReg = document.getElementById('btn-register');
     const btnUnreg = document.getElementById('btn-unregister');
-    btnReg.disabled = true;
-    btnUnreg.disabled = true;
+    btnReg.disabled = true; btnUnreg.disabled = true;
 
     fetch(GOOGLE_URL, {
       method: 'POST',
       body: JSON.stringify({
         action: isJoining ? 'JOIN' : 'LEAVE',
         userId: DB.user.id,
-        userName: DB.user.name, // 🔥 ОТПРАВЛЯЕМ ТЕПЕРЬ РЕАЛЬНОЕ ИМЯ
+        userName: DB.user.name,
         sectionId: sectionId
       })
     })
@@ -254,44 +229,38 @@ const app = {
     .then(data => {
       tg.MainButton.hideProgress();
       app.isLoading = false; 
-      btnReg.disabled = false;
-      btnUnreg.disabled = false;
+      btnReg.disabled = false; btnUnreg.disabled = false;
 
       if(data.status === 'success') {
         tg.showAlert(isJoining ? "Записано!" : "Отменено!");
-        app.loadData();
+        app.loadData(); // Перезагружаем, чтобы обновить счетчик мест
         app.showScreen('view-student-list');
+      } else {
+        tg.showAlert("Ошибка: " + (data.error || "Неизвестная ошибка"));
       }
     })
     .catch(() => {
-      app.isLoading = false;
-      tg.MainButton.hideProgress();
-      btnReg.disabled = false;
-      btnUnreg.disabled = false;
+      app.isLoading = false; tg.MainButton.hideProgress();
+      btnReg.disabled = false; btnUnreg.disabled = false;
     });
   },
 
-  // --- ЛОГИКА УЧИТЕЛЯ ---
   kickStudent: (userId, sectionId) => {
     if (app.isLoading) return;
-    const pass = prompt("Введите пароль секции для удаления студента:");
+    const pass = prompt("Введите пароль секции:");
     if (!pass) return;
-    if(!confirm("Удалить студента?")) return;
+    if(!confirm("Удалить?")) return;
     app.isLoading = true;
     document.getElementById('students-list').innerHTML = "Удаление...";
-    
     fetch(GOOGLE_URL, {
       method: 'POST',
-      body: JSON.stringify({ action: 'kickStudent', userId: userId, sectionId: sectionId, password: pass })
+      body: JSON.stringify({ action: 'kickStudent', userId, sectionId, password: pass })
     })
     .then(res => res.json())
     .then(data => {
        app.isLoading = false;
-       if (data.status === 'success') {
-         tg.showAlert("Студент удален");
-       } else {
-         tg.showAlert("Ошибка: " + (data.error || "Неверный пароль"));
-       }
+       if (data.status === 'success') tg.showAlert("Удален");
+       else tg.showAlert("Ошибка: " + (data.error || "Неверный пароль"));
        app.renderStudentsList(sectionId);
     });
   },
@@ -300,27 +269,27 @@ const app = {
     const title = document.getElementById('input-title').value;
     const schedule = document.getElementById('input-schedule').value;
     const desc = document.getElementById('input-desc').value;
+    const limit = document.getElementById('input-limit').value; // Новое поле
     const password = document.getElementById('input-password').value;
 
     if (!title) return tg.showAlert("Введите название");
     if (!password) return tg.showAlert("Укажите пароль!");
 
     if (app.isLoading) return;
-    app.isLoading = true;
-    tg.MainButton.showProgress();
+    app.isLoading = true; tg.MainButton.showProgress();
 
     fetch(GOOGLE_URL, {
       method: 'POST',
       body: JSON.stringify({
         action: app.currentSectionId ? 'editSection' : 'createSection',
         id: app.currentSectionId,
-        title, schedule, desc, password
+        title, schedule, desc, password, 
+        limit: limit ? parseInt(limit) : 0 // Отправляем лимит (или 0)
       })
     })
     .then(res => res.json())
     .then(data => {
-      app.isLoading = false;
-      tg.MainButton.hideProgress();
+      app.isLoading = false; tg.MainButton.hideProgress();
       if (data.status === 'success') {
         tg.showAlert("Готово!");
         app.loadData();
@@ -332,11 +301,10 @@ const app = {
   },
 
   deleteSection: () => {
-    const pass = prompt("Введите пароль секции для удаления:");
+    const pass = prompt("Пароль секции:");
     if (!pass) return;
     if (app.isLoading) return;
-    app.isLoading = true;
-    tg.MainButton.showProgress();
+    app.isLoading = true; tg.MainButton.showProgress();
 
     fetch(GOOGLE_URL, {
       method: 'POST',
@@ -344,8 +312,7 @@ const app = {
     })
     .then(res => res.json())
     .then(data => {
-      app.isLoading = false;
-      tg.MainButton.hideProgress();
+      app.isLoading = false; tg.MainButton.hideProgress();
       if (data.status === 'success') {
         tg.showAlert("Удалено");
         app.loadData();
@@ -367,29 +334,21 @@ const app = {
         students.forEach(st => {
           const div = document.createElement('div');
           div.style = "display: flex; justify-content: space-between; padding: 10px; border-bottom:1px solid #eee";
-          div.innerHTML = `<span>${st.userName}</span><span style="color:red; cursor:pointer; font-weight:bold" onclick="app.kickStudent(${st.userId}, ${sectionId})">Удалить</span>`;
+          div.innerHTML = `<span>${st.userName}</span><span style="color:red; cursor:pointer;" onclick="app.kickStudent(${st.userId}, ${sectionId})">Удалить</span>`;
           list.appendChild(div);
         });
       });
   },
 
-  // --- ОБЩЕЕ ---
   toggleRole: () => {
     if (DB.user.role === 'student') {
       const pass = prompt("Пароль преподавателя:");
       if (pass !== TEACHER_ACCESS_CODE) { alert("Неверный пароль!"); return; }
       DB.user.role = 'teacher';
-    } else {
-      DB.user.role = 'student';
-    }
+    } else { DB.user.role = 'student'; }
     document.getElementById('current-role-label').innerText = DB.user.role === 'student' ? 'Ученик' : 'Преподаватель';
-    if (DB.user.role === 'teacher') {
-      document.getElementById('tabbar').classList.add('hidden');
-      app.showScreen('view-teacher-dashboard');
-    } else {
-      document.getElementById('tabbar').classList.remove('hidden');
-      app.showScreen('view-student-list');
-    }
+    if (DB.user.role === 'teacher') { document.getElementById('tabbar').classList.add('hidden'); app.showScreen('view-teacher-dashboard'); } 
+    else { document.getElementById('tabbar').classList.remove('hidden'); app.showScreen('view-student-list'); }
   },
 
   switchTab: (tab) => {
@@ -403,15 +362,33 @@ const app = {
     tg.BackButton.hide();
   },
   renderAll: () => { app.renderStudentList(); app.renderTeacherDashboard(); },
+
   renderStudentList: () => {
     const list = document.getElementById('sections-list'); list.innerHTML = '';
     DB.sections.forEach(s => {
       const isReg = DB.registrations.some(r => r.sectionId == s.id);
+      
+      // Формируем текст про места
+      let limitText = "";
+      let isFull = false;
+      if (s.limit > 0) {
+        limitText = `<span class="badge ${s.count >= s.limit ? 'red' : 'green'}">${s.count} / ${s.limit}</span>`;
+        if (s.count >= s.limit) isFull = true;
+      }
+
       const card = document.createElement('div'); card.className = 'card';
-      card.innerHTML = `<h3>${s.title} ${isReg ? '✅' : ''}</h3><p>${s.schedule}</p><button class="btn outline" onclick="app.openDetails(${s.id})">Подробнее</button>`;
+      card.innerHTML = `
+        <div class="card-header">
+           <h3>${s.title} ${isReg ? '✅' : ''}</h3>
+           ${limitText}
+        </div>
+        <p>${s.schedule}</p>
+        <button class="btn outline" onclick="app.openDetails(${s.id})">Подробнее</button>
+      `;
       list.appendChild(card);
     });
   },
+
   renderProfile: () => {
     const list = document.getElementById('my-registrations-list'); list.innerHTML = '';
     const mySecs = DB.sections.filter(s => DB.registrations.some(r => r.sectionId == s.id));
@@ -422,14 +399,17 @@ const app = {
       list.appendChild(card);
     });
   },
+
   renderTeacherDashboard: () => {
     const list = document.getElementById('teacher-sections-list'); list.innerHTML = '';
     DB.sections.forEach(s => {
+      const limitText = s.limit > 0 ? `(Лимит: ${s.limit}, Занято: ${s.count})` : "(Безлимит)";
       const card = document.createElement('div'); card.className = 'card';
-      card.innerHTML = `<h3>${s.title}</h3><p>${s.schedule}</p><button class="btn outline" onclick="app.openDetails(${s.id})">Управление</button>`;
+      card.innerHTML = `<h3>${s.title}</h3><p>${s.schedule}</p><p style="font-size:12px">${limitText}</p><button class="btn outline" onclick="app.openDetails(${s.id})">Управление</button>`;
       list.appendChild(card);
     });
   },
+
   openDetails: (id) => {
     app.currentSectionId = id;
     const s = DB.sections.find(sec => sec.id == id);
@@ -437,35 +417,71 @@ const app = {
     document.getElementById('detail-title').innerText = s.title;
     document.getElementById('detail-desc').innerText = s.desc;
     document.getElementById('detail-schedule').innerText = s.schedule;
+
+    // Бейдж на детальной странице
+    const badgeDiv = document.getElementById('detail-badge');
+    if (s.limit > 0) {
+        badgeDiv.className = `badge ${s.count >= s.limit ? 'red' : 'green'}`;
+        badgeDiv.innerText = `Места: ${s.count} из ${s.limit}`;
+        badgeDiv.style.display = 'inline-block';
+    } else {
+        badgeDiv.style.display = 'none';
+    }
+
     const studentBlock = document.getElementById('student-actions');
     const teacherBlock = document.getElementById('teacher-actions');
+
     if (DB.user.role === 'teacher') {
       studentBlock.classList.add('hidden'); teacherBlock.classList.remove('hidden'); app.renderStudentsList(id);
     } else {
       teacherBlock.classList.add('hidden'); studentBlock.classList.remove('hidden');
       const isReg = DB.registrations.some(r => r.sectionId == id);
-      const btnReg = document.getElementById('btn-register'); const btnUnreg = document.getElementById('btn-unregister');
-      if (isReg) { btnReg.classList.add('hidden'); btnUnreg.classList.remove('hidden'); btnUnreg.onclick = () => app.toggleRegistration(id, false); }
-      else { btnUnreg.classList.add('hidden'); btnReg.classList.remove('hidden'); btnReg.onclick = () => app.toggleRegistration(id, true); }
+      const btnReg = document.getElementById('btn-register'); 
+      const btnUnreg = document.getElementById('btn-unregister');
+      const msgFull = document.getElementById('msg-full');
+
+      // Логика кнопки записи с учетом мест
+      if (isReg) { 
+        btnReg.classList.add('hidden'); 
+        msgFull.classList.add('hidden');
+        btnUnreg.classList.remove('hidden'); 
+        btnUnreg.onclick = () => app.toggleRegistration(id, false); 
+      } else { 
+        btnUnreg.classList.add('hidden'); 
+        
+        // Если мест нет, блокируем кнопку "Записаться"
+        if (s.limit > 0 && s.count >= s.limit) {
+            btnReg.classList.add('hidden');
+            msgFull.classList.remove('hidden'); // Показываем "Мест нет"
+        } else {
+            btnReg.classList.remove('hidden');
+            msgFull.classList.add('hidden');
+            btnReg.onclick = () => app.toggleRegistration(id, true); 
+        }
+      }
     }
     app.showScreen('view-details'); tg.BackButton.show();
   },
+
   openCreateForm: () => {
     app.currentSectionId = null;
     document.getElementById('form-title').innerText = "Новая секция";
     document.getElementById('input-title').value = "";
     document.getElementById('input-schedule').value = "";
     document.getElementById('input-desc').value = "";
+    document.getElementById('input-limit').value = "";
     document.getElementById('input-password').value = ""; 
-    document.getElementById('input-password').placeholder = "Придумайте пароль для секции";
+    document.getElementById('input-password').placeholder = "Придумайте пароль";
     app.showScreen('view-form'); tg.BackButton.show();
   },
+
   openEditForm: () => {
     const s = DB.sections.find(sec => sec.id == app.currentSectionId);
     document.getElementById('form-title').innerText = "Редактирование";
     document.getElementById('input-title').value = s.title;
     document.getElementById('input-schedule').value = s.schedule;
     document.getElementById('input-desc').value = s.desc;
+    document.getElementById('input-limit').value = s.limit || "";
     document.getElementById('input-password').value = ""; 
     document.getElementById('input-password').placeholder = "Введите пароль для сохранения";
     app.showScreen('view-form'); tg.BackButton.show();
